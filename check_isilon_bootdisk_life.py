@@ -7,7 +7,7 @@
 #		instead we track hours powered on and assume a 3 year
 #		life span
 # Author(s):    Randy Rue, fredhutch.org
-# Mod Date:     2016-02-17
+# Mod Date:     2016-02-16
 ###########################################################################
 #load the required modules
 import os, sys, string
