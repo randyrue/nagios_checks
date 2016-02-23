@@ -7,7 +7,7 @@
 #		instead we track hours powered on and assume a 3 year
 #		life span
 # Author(s):    Randy Rue, fredhutch.org
-# Mod Date:     2016-02-16
+# Mod Date:     2016-02-17
 ###########################################################################
 #load the required modules
 import os, sys, string
@@ -30,11 +30,11 @@ def main():
     # Windows paths, files and executables
     global ssh, ssh_key
     ssh = 'plink.exe'
-    ssh_key = "c:\\ssh\\id_rsa.ppk"
+    ssh_key = "c:\\ssh\\sopus.ppk"
     if os.name == "posix":
         # we're running *nux, change paths and variables for outside calls
         ssh = '/usr/bin/ssh'
-        ssh_key = '/home/nagios/.ssh/id_rsa'
+        ssh_key = '/home/nagios/.ssh/opus'
     
     cmd = "isi_radish -a \"'Internal J3' 'Internal J4' 'Carrier board J3' 'Carrier board J4'\""
     cmdfmt = '%s -i %s root@%s %s'
@@ -71,22 +71,24 @@ def main():
 	    if model == "SMART iSATA":
 		pct_life_remaining = float(int(line.split()[7][:-1], 16))
 	    elif model == "SanDisk SSD":
+		max_hours = 3 * 24 * 365
 		# SanDisk SSD has no pct_rem metric, estimating based on hours run and three year life span
-		pct_life_remaining = 100 - 100*hours/26280
+		if hours >= max_hours:
+		    pct_life_remaining = 0
+		else:
+		    pct_life_remaining = 100 - 100*hours/max_hours
 	    elif model == "NETLIST SSD":
 		pct_life_remaining = float(int(line.split()[7][:-1], 16))
-#		if pct_life_remaining < 0: pct_life_remaining = 0
 	if line.startswith("SMART status is"):
-	    remaining_days = int(((pct_life_remaining/100) * hours)/(1-(pct_life_remaining/100)))/24
-	    disks[device] = remaining_days
+	    disks[device] = int(pct_life_remaining)
     
     keys = disks.keys()
     keys.sort()
     status = "OK"
     ostring = ""
     for key in keys:
-	if ostring == "": ostring = "%s:%d days remaining" % (key, disks[key])
-	else: ostring = ostring + ", %s:%d days remaining" % (key, disks[key])
+	if ostring == "": ostring = "%s:%d%% remaining" % (key, disks[key])
+	else: ostring = ostring + ", %s:%d%% remaining" % (key, disks[key])
 	if disks[key] < crit:
 	    status = "critical"
 	if disks[key] < wrn:
