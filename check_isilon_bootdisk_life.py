@@ -30,11 +30,11 @@ def main():
     # Windows paths, files and executables
     global ssh, ssh_key
     ssh = 'plink.exe'
-    ssh_key = "c:\\ssh\\sopus.ppk"
+    ssh_key = "c:\\ssh\\id_rsa.ppk"
     if os.name == "posix":
         # we're running *nux, change paths and variables for outside calls
         ssh = '/usr/bin/ssh'
-        ssh_key = '/home/nagios/.ssh/opus'
+        ssh_key = '/home/nagios/.ssh/id_rsa'
     
     cmd = "isi_radish -a \"'Internal J3' 'Internal J4' 'Carrier board J3' 'Carrier board J4'\""
     cmdfmt = '%s -i %s root@%s %s'
