@@ -35,17 +35,17 @@ def main():
         ssh_key = '/usr/local/apps/nagios/.ssh/id_rsa'
 	cmdfmt = '%s -i %s -q -o StrictHostKeyChecking=no nagios@%s %s'
     
-    
-    cmd = cmdfmt % (ssh, ssh_key, host, cmd)
-    
-    results = os.popen(cmd).readlines()
-    results = "foo"
-    
-    if string.join(results).strip() == "":
-	sys.stdout.write("CRITICAL: No data returned from %s" % host)
-	sys.exit(2)
+    try:
+	cmd = cmdfmt % (ssh, ssh_key, host, cmd)
+	infile = os.popen(cmd)
+	inlines = infile.readlines()
+	infile.close()
+	results = inlines[2].strip()
+    except:
+	sys.stdout.write("UNKNOWN: Incorrect data from %s" % host)
+	sys.exit(3)
 
-    if results[2].strip() == "ok":
+    if results == "ok":
 	sys.stdout.write("Global Status OK")
 	sys.exit(0)
     else:
