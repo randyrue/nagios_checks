@@ -39,7 +39,6 @@ def main():
     cmd = cmdfmt % (ssh, ssh_key, host, cmd)
     
     results = os.popen(cmd).readlines()
-    results = "foo"
     
     if string.join(results).strip() == "":
 	sys.stdout.write("CRITICAL: No data returned from %s" % host)
