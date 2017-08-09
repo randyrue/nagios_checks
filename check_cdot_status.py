@@ -42,14 +42,14 @@ def main():
 	infile.close()
 	results = inlines[2].strip()
     except:
-	sys.stdout.write("UNKNOWN: Incorrect data from %s" % host)
+	sys.stdout.write("UNKNOWN - Incorrect data from %s" % host)
 	sys.exit(3)
     
     if results == "ok":
-	sys.stdout.write("Global Status OK")
+	sys.stdout.write("OK - Global Status OK")
 	sys.exit(0)
     else:
-	sys.stdout.write("CRITICAL: Check Global Status")
+	sys.stdout.write("CRITICAL - Check Global Status")
 	sys.exit(2)
 
 if __name__ == '__main__': main()
