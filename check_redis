@@ -1,0 +1,18 @@
+#!/bin/bash -l
+#check for active redis service using credentials from redis.conf
+
+RA=`grep requirepass /etc/redis/redis.conf | awk '{print $2}'`
+rnum=($RANDOM % 100)
+
+redis-cli -a $RA set nagios $rnum 2>&1 > /dev/null
+redis_output=`redis-cli -a $RA get nagios`
+
+if [ $redis_output -ne $rnum ]; then
+   echo -n "CRITICAL: read/write to redis failed"
+   exit 2
+else
+   echo "OK: read/write to redis succeeded"
+   exit 0
+fi
+echo "WARNING: something is wrong with this nrpe script"
+exit 1
