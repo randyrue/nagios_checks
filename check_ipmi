@@ -1,0 +1,96 @@
+#!/bin/bash
+# This script executes the system ipmitool and checks its output
+# the -w or -c flags determines the severity of the return status for nagios
+# the disk, psu or fan flags identify the chassis statuses to check for
+# the sel flag checks the System Event Log for Critical or Fault events
+
+while [ ! -z "$1" ]; do
+    case "$1" in
+    '-w'|'--warning')
+        # comma separated list of checks that should return warning.
+        # e.g. disk,psu
+        shift
+        WARN="$1"
+        ;;
+    '-c'|'--critical')
+        # comma separated list of checks that should return critical.
+        # e.g. fan,disk
+        shift
+        CRIT="$1"
+        ;;
+    '-i'|'--ipmi')
+        # The local path to ipmitool if it's non-standard.
+        shift
+        IPMITOOL="$1"
+        ;;
+    esac
+    shift
+done
+
+IPMITOOL="/usr/bin/ipmitool"
+
+if [ ! -e "$IPMITOOL" ]; then
+    MESSAGE='UNKNOWN: could not locate ipmitool'
+    ERR=3
+else
+    status=$(sudo $IPMITOOL chassis status 2>&1) && \
+    sel=$(sudo $IPMITOOL sel list 2>&1)
+    if [ $? -ne 0 ]; then
+        MESSAGE='UNKNOWN: ipmitool had non-zero exit status'
+        ERR=3
+    else
+        fan_status=$(
+            echo "$status" | \
+            grep '^Cooling/Fan' | \
+            cut -d':' -f2 | \
+            sed 's/^[[:space:]]//'
+        )
+        disk_status=$(
+            echo "$status" | \
+            grep '^Drive' | \
+            cut -d':' -f2 | \
+            sed 's/^[[:space:]]//'
+        )
+        psu_status=$(
+            echo "$status" | \
+            grep '^Main Power' | \
+            cut -d':' -f2 | \
+            sed 's/^[[:space:]]//'
+        )
+        sel_status=$(
+            echo "$sel" | \
+            grep 'Critical'| \
+	    awk '{print $7}'
+        )
+	if [ -z "$sel_status" ]
+	then
+	    sel_status="false"
+        fi
+        # Check warning first.
+        for check in $(echo "$WARN" | tr ',' ' '); do
+            check_status="${check}_status"
+            if [ "${!check_status}" != 'false' ]; then
+                MESSAGE="WARNING: $check fault: ${!check_status}"
+                ERR=1
+                break
+            fi
+        done
+        # Check critical second so that any critical errors override warnings.
+        for check in $(echo "$CRIT" | tr ',' ' '); do
+            check_status="${check}_status"
+            if [ "${!check_status}" != 'false' ]; then
+                MESSAGE="CRITICAL: $check fault: ${!check_status}"
+                ERR=2
+                break
+            fi
+        done
+        # Set an all-clear message if nothing else has indicated a warning.
+        if [ -z "$MESSAGE" ]; then
+            MESSAGE="OK: IPMI indicates no failures."
+            ERR=0
+        fi
+    fi
+fi
+
+echo "$MESSAGE"
+exit $ERR
