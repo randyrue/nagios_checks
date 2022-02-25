@@ -3,6 +3,7 @@
 # Application:  check_dell_warranty.py
 # Function:     nagios check checks finds Service Tag and checks warranty
 #		status via Dell API
+#               almost definitely out of date since Dell locked down the API
 # Author(s):    Randy Rue, scharp.org
 ###########################################################################
 #load the required modules
