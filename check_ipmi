@@ -3,6 +3,7 @@
 # the -w or -c flags determines the severity of the return status for nagios
 # the disk, psu or fan flags identify the chassis statuses to check for
 # the sel flag checks the System Event Log for Critical or Fault events
+# example 'check_ipmi -w psu,fan,disk -c sel'
 
 while [ ! -z "$1" ]; do
     case "$1" in
