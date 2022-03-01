@@ -60,7 +60,8 @@ else
         )
         sel_status=$(
             echo "$sel" | \
-            grep 'Critical'| \
+	    egrep '(Critical|Fault)'| \
+	    grep -v 'graceful'| \
 	    awk '{print $7}'
         )
 	if [ -z "$sel_status" ]
