@@ -1,0 +1,70 @@
+#!/usr/bin/python3
+###########################################################################
+# Function:     load xapps services.yaml from file system and check that
+#               desired services are present and set to start on boot
+# Author(s):    Randy Rue, scharp.org
+###########################################################################
+#load the required modules
+import os, sys, string, time, yaml, requests, socket, subprocess
+from subprocess import PIPE
+
+def main():
+
+  src_yaml = '/scharp/xapps/tools/contracts/for-infrastructure/services.yaml'
+  
+  hostname = socket.getfqdn()
+  shortname = socket.gethostname()
+  
+  # get a list of startup services on this host
+  local_services = []
+  sp = subprocess.Popen("chkconfig -l | grep 3:on | awk '{print $1}'",
+  shell=True,
+  stdout=subprocess.PIPE,
+  stderr=subprocess.PIPE)
+  rc = sp.wait()
+  stdout, stderror = sp.communicate()
+  local_services.extend(stdout.decode().splitlines())
+  sp = subprocess.Popen("systemctl list-unit-files | grep enabled | awk '{print $1}' | sed s/.service$// | sed s/-production$//",
+  shell=True,
+  stdout=subprocess.PIPE,
+  stderr=subprocess.PIPE)
+  rc = sp.wait()
+  stdout, stderror = sp.communicate()
+  local_services.extend(stdout.decode().splitlines())
+
+
+  # load the services yaml file into a dict
+  with open(src_yaml, 'r', encoding='utf-8') as svc_file:
+    services = yaml.safe_load(svc_file)
+      
+
+  # get a list of the services that should be running on this host
+  sbr_services = []
+  for service in services['services'].keys():
+    # get the values we care about from the yaml source dict
+    for environment in services['services'][service]['environments'].keys():
+      if "autostart" in services['services'][service]['environments'][environment] and \
+      services['services'][service]['environments'][environment]['autostart'] == True and\
+      services['services'][service]['environments'][environment]['host'] == hostname:
+        sbr_services.append(service)
+
+  
+  # now walk the list of "Should Be Running" services and see if they're in the local enabled services
+  all_good = True
+  for service in sbr_services:
+    if not service in local_services:
+      all_good = False
+  
+  if all_good == True:
+    print("OK: no misconfigured xapps service startups on %s" % shortname)
+    sys.exit(0)
+  else:
+    output = "CRITICAL: "
+    for service in sbr_services:
+      if not service in local_services:
+        output = output + "%s not properly configured " % service
+    print(output)
+    sys.exit(2)
+
+
+if __name__ == '__main__': main()
