@@ -17,14 +17,14 @@ def main():
   
   # get a list of startup services on this host
   local_services = []
-  sp = subprocess.Popen("chkconfig -l | grep 3:on | awk '{print $1}'",
+  sp = subprocess.Popen("/sbin/chkconfig -l | grep 3:on | awk '{print $1}'",
   shell=True,
   stdout=subprocess.PIPE,
   stderr=subprocess.PIPE)
   rc = sp.wait()
   stdout, stderror = sp.communicate()
   local_services.extend(stdout.decode().splitlines())
-  sp = subprocess.Popen("systemctl list-unit-files | grep enabled | awk '{print $1}' | sed s/.service$// | sed s/-production$//",
+  sp = subprocess.Popen("/usr/bin/systemctl list-unit-files | grep enabled | awk '{print $1}' | sed s/.service$// | sed s/-production$//",
   shell=True,
   stdout=subprocess.PIPE,
   stderr=subprocess.PIPE)
