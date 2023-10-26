@@ -1,0 +1,119 @@
+#!/usr/bin/python3
+###########################################################################
+# Function:     load xapps services.yaml from file system and compare it to
+#               the existing rules in our F5/BIP
+# Author(s):    Randy Rue, scharp.org
+###########################################################################
+#load the required modules
+import os, sys, string, yaml, requests, socket
+from urllib.parse import urlparse
+
+# disable SSL warnings for the F5's self-signed certs
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+def main():
+  # path syntax changes if we're in windows or linux
+  if sys.platform == "linux":
+    src_yaml = '/scharp/xapps/tools/contracts/for-infrastructure/services.yaml'
+    # or overwrite path to point at broken testing yaml
+    #src_yaml = '/home/rgrue/tmp/services.yaml'
+
+  else:
+    src_yaml = 'J:/xapps/tools/contracts/for-infrastructure/services.yaml'
+    # or overwrite path to point at broken testing yaml
+    #src_yaml = 'H:/tmp/services.yaml'
+  
+  dgl_frontends = {
+    "xapps.scharp.org": "xapps_play",
+    "tools.scharp.org": "tools_xapps_play"
+  }
+  
+  # load the services yaml file into a dict
+  with open(src_yaml, 'r', encoding='utf-8') as svc_file:
+    services = yaml.safe_load(svc_file)
+  # connect to the F5 and load the existing rule sets
+  bip_api_user = "browser" # RO account so we're careless about the PW
+  bip_api_pw = "1heartM0mmy"
+  # load the two Data Group Lists into a dict
+  dgl_names = ["xapps_play", "tools_xapps_play"]
+  dgls = {}
+  for dgl in dgl_names:
+    url = "https://bip.pc.scharp.org/mgmt/tm/ltm/data-group/internal/%s" % dgl
+    response = requests.get(url, verify = False, auth=(bip_api_user, bip_api_pw))
+    dgls[dgl] = {}
+    for rule in response.json()['records']:
+      dgls[dgl][rule['name']] = rule['data']
+      
+  # start comparing the services file to the reality (the F5 rules)
+  # walk the dict of services from the xapps yaml file
+  all_good = True
+  out = ""
+  for service in services['services'].keys():
+    # get the values we care about from the yaml source dict
+    for environment in services['services'][service]['environments'].keys():
+      o = urlparse(services['services'][service]['environments'][environment]['bip-mapping']['to'])
+      to_host = o.hostname
+      try:
+        ip = socket.gethostbyname(o.hostname)
+      except:
+        out = out + "INVALID HOSTNAME in service file %s's %s environment.\n" % (service, environment)
+        continue
+      port = o.port
+      o = urlparse(services['services'][service]['environments'][environment]['bip-mapping']['from'])
+      dgl_ruleset = dgl_frontends[o.hostname]
+      rule_string = o.path[1:] # remove leading "/" from the returned path
+      
+      if port != services['services'][service]['environments'][environment]['port']:
+        out = out + "SERVICE FILE MISMATCH: %s has port %s in the services file environment section and %s in the services file bip-mapping section\'s \'to\' section.\n" % (rule_string, port, services['services'][service]['environments'][environment]['port'])
+        all_good = False
+      if to_host != services['services'][service]['environments'][environment]['host']:
+        out = out + "SERVICE FILE MISMATCH: %s has host %s in the services file environment section and %s in the services file bip-mapping section\'s \'to\' section.\n" % (rule_string, to_host, services['services'][service]['environments'][environment]['host'])
+        all_good = False
+      
+      # now look in the F5 rules for a matching entry
+      if not rule_string in dgls[dgl_ruleset]:
+        out = out + "NO SUCH RULE \"%s\" exists on the F5 in the %s Data Group List.\n" % (rule_string, dgl_ruleset)
+        all_good = False
+        continue
+      if not rule_string.split()[0] in dgls[dgl_ruleset]:
+        out = out + "NO SUCH ENVIRONMENT \"%s\" exists on the F5 for service %s.\n" % (rule_string.split()[0], rule_string)
+        all_good = False
+      else:    
+        bip_ip = dgls[dgl_ruleset][rule_string].split()[0]
+        bip_port = dgls[dgl_ruleset][rule_string].split()[-1]
+      
+      if ip != bip_ip:
+        out = out + "MISMATCH: %s has ip %s in the services file and %s on the F5.\n" % (rule_string, ip, bip_ip)
+        all_good = False
+      if port != int(bip_port):
+        out = out + "MISMATCH: %s has port %s in the services file and %s on the F5.\n" % (rule_string, port, bip_port)
+        all_good = False
+  
+  # now walk  the Data Group Lists on the F5 and make sure there are no rules that
+  # aren't in the services file
+  for dgl_ruleset in dgls.keys():
+    for rule_string in dgls[dgl_ruleset].keys():
+      (service, env) = ("", "")
+      (service, env) = get_service(services, rule_string)
+      if service == "" or env == "":
+        out = out + "F5 Data Group List entry \"%s::%s\" HAS NO MATCHING SERVICE in the services.yaml file.\n" % (dgl_ruleset, rule_string)
+        all_good = False
+        continue
+
+  if out == "":
+    print("OK: services.yaml and the F5 rules match")
+    sys.exit(0)
+  else:
+    print("CRITICAL: %s" % out)
+    sys.exit(2)
+  
+def get_service(services, rule_string):
+  for service in services['services'].keys():
+    for env in services['services'][service]['environments'].keys():
+      o = urlparse(services['services'][service]['environments'][env]['bip-mapping']['from'])
+      if rule_string == o.path[1:]: # remove leading "/" from the returned path
+        return (service, env)
+  return ("", "")
+
+if __name__ == '__main__': main()
